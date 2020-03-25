@@ -10,7 +10,7 @@ from scipy import signal
 #from termcolor import colored
 
 "--------------------------------'EXTRACTING DATA FROM HDF5 FORMAT'--------------------------------"
-def single_extractOSAdata(file, path_to_outfile, patient):
+def single_extractOSAdata(file, path_to_outfile, patient, signal_list):
     '''
     Extract data from h5py file.
     Extract the specific channel name instead of using fixed indexes as in theory it can happen that some channels
@@ -26,12 +26,6 @@ def single_extractOSAdata(file, path_to_outfile, patient):
 
         channels = f['ch']
 
-        # print(channels.keys()) #['data', 'fs', 'label', 'unit']
-
-        signal_list = ['ECG 1', 'ECG 2', 'Left Leg', 'Right Leg', 'SpO2', 'Hypnogram', 'LightsOFF', 'DataPresent',
-                       'Exclude',
-                       'PSG_Condition_1', 'Event_Hypopnea', 'Event_CSA', 'Event_MSA', 'Event_OSA', 'AnyEvent']
-
         s = {}
         for i in range(channels['data'].shape[0]):
             label = f[channels['label'][i, 0]][()].tobytes()[::2].decode()
@@ -39,21 +33,13 @@ def single_extractOSAdata(file, path_to_outfile, patient):
             if label in signal_list:
                 s[label] = f[channels['data'][i, 0]][()]  # .value
 
-                # if label == 'SpO2': print(f['ch/fs'])
 
-
-        s['oECG'] = s['ECG 1'] - s['ECG 2']
-        s['nECG'] = 0.5 * (s['Left Leg'] + s['Right Leg'])
-        s['AnyEvent'] = s['Event_Hypopnea'] | s['Event_CSA'] | s['Event_OSA'] | s['Event_MSA']
-        s['Exclude'] = (s['Hypnogram'] > 8) | (s['DataPresent'] == 0)  # | (s['LightsOFF'] ==0)
+        s['ECG'] = s[signal_list[0]] - s[signal_list[1]]
 
 
         np.savez_compressed(path_to_outfile + patient,
-                            flags=np.stack
-                                  ([s[label] for label in signal_list[5:]])[:, :, 0],  # stacking all other signals
-                            ecg=s['nECG'],  # from leg
-                            oldecg=s['oECG'],
-                            oxy=s['SpO2'])  # from ecg12
+                            flags=np.stack([s[label] for label in signal_list[5:]])[:, :, 0],  # stacking all other signals
+                            ecg=s['ECG'],  # from leg
 
 
 
@@ -252,46 +238,6 @@ def Transformer(data, mode='normal', axis=0):
             t_data = np.transpose(t_data)
     return t_data
 
-# def transformer(data, mode='normal', axis=0):
-#
-#     'For 3D: apply transform on batchsize/sample (first axis)'
-#     'For 2D: apply transform to specified dimension axis =0/1'
-#     from sklearn.preprocessing import Normalizer, StandardScaler, MinMaxScaler, RobustScaler
-#     assert (len(data.shape) in [2,3]), 'transformer only support 2D or 3D dimension'
-#     if len(data.shape) == 3:
-#         assert axis == 0, 'Transform only apply to batchsize/sample dimension. Specify [bz, ch, signal] for input and axis=0 instead'
-#         bz, ch, s = data.shape
-#         #axis = 0
-#     else:
-#         s = data.shape[1]
-#
-#     if axis == 0:  # axis==1 mean no tranpose, reshape needed
-#         r_data = np.transpose(data.reshape(-1, s))
-#     else:
-#         r_data = data
-#
-#     if mode == 'normal':
-#         transform = Normalizer()
-#
-#     if mode == 'standard':
-#         transform = StandardScaler()
-#
-#     if mode == 'minmax':
-#         transform = MinMaxScaler()
-#
-#     if mode == 'robust':
-#         transform = RobustScaler()
-#
-#     t_data = transform.fit_transform(r_data)
-#
-#     if axis == 0:
-#         if len(data.shape) == 3:
-#             t_data = np.transpose(t_data).reshape(-1, ch, s)
-#         else:
-#             t_data = np.transpose(t_data)
-#     return t_data
-
-import numpy as np
 def data_segmenting(data, split_dur = 1000, fs = 200, overlap = None, axis = 0):
     '''
 
